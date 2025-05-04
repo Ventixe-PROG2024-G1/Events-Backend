@@ -1,8 +1,22 @@
-﻿var builder = WebApplication.CreateBuilder(args);
+﻿using EventsWebApi.Data.Context;
+using EventsWebApi.Handler;
+using EventsWebApi.Mapper;
+using EventsWebApi.Repositories;
+using EventsWebApi.Services;
+using Microsoft.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
+builder.Services.AddDbContext<ApplicationDbContext>(x => x.UseSqlServer(builder.Configuration.GetConnectionString("SqlConnection")));
+
+builder.Services.AddScoped(typeof(ICacheHandler<>), typeof(CacheHandler<>));
+builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
+builder.Services.AddScoped<IEventRepository, EventRepository>();
+builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<IEventService, EventService>();
 
 
 var app = builder.Build();
