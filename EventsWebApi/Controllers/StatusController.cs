@@ -9,13 +9,13 @@ namespace EventsWebApi.Controllers
     public class StatusController : ControllerBase
     {
         [HttpGet("eventstatuses")]
-        public async Task<IActionResult> GetEventStatuses()
+        public IActionResult GetEventStatuses()
         {
-            var eventStatuses = Enum .GetValues<EventStatus>()
+            var eventStatuses = Enum.GetValues<EventStatus>()
                 .Cast<EventStatus>()
-                .Select(status => new { 
-                    Id = (int)status, 
-                    Name = status.ToString() 
+                .Select(status => new {
+                    Id = (int)status,
+                    Name = status.ToString()
                 })
                 .ToList();
             return Ok(eventStatuses);
