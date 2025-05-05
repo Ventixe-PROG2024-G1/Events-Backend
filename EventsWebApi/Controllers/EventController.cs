@@ -21,27 +21,49 @@ namespace EventsWebApi.Controllers
 
             if (result == null)
                 return BadRequest("Failed to create Event");
-            return Ok(result);
+
+            return CreatedAtAction(nameof(GetEvent), new { id = result.Id }, result);
         }
 
         [HttpGet]
         public async Task<IActionResult> GetAllEvents()
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
-
             var result = await _eventService.GetAllEventsAsync();
-
-            if (result == null)
-                return BadRequest("No Events found");
-
             return Ok(result);
         }
 
         [HttpGet("{id}")]
         public async Task<IActionResult> GetEvent(Guid Id)
         {
+            
+            var result = await _eventService.GetEventByIdAsync(Id);
 
+            if (result == null)
+                return NotFound();
+
+            return Ok(result);
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteEvent(Guid Id)
+        {
+            var result = await _eventService.DeleteEventAsync(Id);
+
+            if (!result)
+                return NotFound();
+
+            return Ok();
+        }
+
+        [HttpPut]
+        public async Task<IActionResult> UpdateEvent(UpdateEventRequest requestData)
+        {
+            var result = await _eventService.UpdateEventAsync(requestData);
+
+            if (result == null)
+                return NotFound();
+
+            return Ok(result);
         }
     }
 }

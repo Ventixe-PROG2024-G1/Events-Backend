@@ -30,31 +30,47 @@ public class CategoryService(ICategoryRepository categoryRepository, ICacheHandl
         if (!result)
             return null;
 
-        var response = await UpdateCacheAsync();
-        return response.FirstOrDefault(x => x.Id == entity.Id);
+        _cacheHandler.RemoveCache(_cacheKey);
+        return ApiMapper.MapToCategoryResponse(entity);
     }
 
     public async Task<bool> DeleteCategoryAsync(Guid Id)
     {
-        var entity = await _categoryRepository.DeleteAsync(x => x.Id == Id);
-        if (entity)
-            await UpdateCacheAsync();
+        var success = await _categoryRepository.DeleteAsync(x => x.Id == Id);
+        if (success)
+            _cacheHandler.RemoveCache(_cacheKey);
 
-        return entity;
+        return success;
     }
 
-    public async Task<IEnumerable<CategoryResponse>> GetAllCategoriesAsync() =>
-        _cacheHandler.GetFromCache(_cacheKey) ?? await UpdateCacheAsync();
-
-    public async Task<IEnumerable<CategoryResponse>> UpdateCacheAsync()
+    public async Task<CategoryResponse?> GetCategoryByIdAsync(Guid Id)
     {
-        var entities = await _categoryRepository.GetAllAsync();
-        var responses = entities
-            .Select(ApiMapper.MapToCategoryResponse)
-            .OrderBy(category => category.CategoryName)
-            .ToList();
+        var cachedCategory = _cacheHandler.GetFromCache(_cacheKey);
+        if (cachedCategory != null)
+        {
+            var category = cachedCategory.FirstOrDefault(x => x.Id == Id);
+            return category;
+        }
 
-        _cacheHandler.SetCache(_cacheKey, responses);
-        return responses;
+        var entity = await _categoryRepository.GetByIdAsync(x => x.Id == Id);
+        if (entity == null)
+            return null;
+
+        return ApiMapper.MapToCategoryResponse(entity);
     }
+
+    public async Task<IEnumerable<CategoryResponse>> GetAllCategoriesAsync()
+    {
+        var categories = await _cacheHandler.GetOrCreateAsync(_cacheKey, async () =>
+        {
+            var entities = await _categoryRepository.GetAllAsync();
+
+            return entities
+                .Select(ApiMapper.MapToCategoryResponse)
+                .OrderBy(category => category.CategoryName)
+                .ToList();
+        });
+        return categories ?? Enumerable.Empty<CategoryResponse>();
+    }
+
 }

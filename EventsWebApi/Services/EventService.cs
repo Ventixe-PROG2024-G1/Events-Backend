@@ -29,76 +29,74 @@ public class EventService(IEventRepository eventRepository, ICacheHandler<IEnume
     {
         var entity = ApiMapper.MapToEventEntity(requestData);
         var result = await _eventRepository.AddAsync(entity);
+        if (!result)
+            return null;
 
-        var response = await UpdateCacheAsync();
-        return response.FirstOrDefault(x => x.Id == entity.Id);
+        _cacheHandler.RemoveCache(_cacheKey);
+        return ApiMapper.MapToEventResponse(entity);
     }
 
     public async Task<bool> DeleteEventAsync(Guid Id)
     {
-        var entity = await _eventRepository.DeleteAsync(x => x.Id == Id);
+        var success = await _eventRepository.DeleteAsync(x => x.Id == Id);
 
-        if (entity)
-            await UpdateCacheAsync();
+        if (success)
+            _cacheHandler.RemoveCache(_cacheKey);
 
-        return entity;
+        return success;
     }
 
-    public async Task<IEnumerable<EventResponse>> GetAllEventsAsync() =>
-        _cacheHandler.GetFromCache(_cacheKey) ?? await UpdateCacheAsync();
-
-
-    public async Task<IEnumerable<EventResponse>> GetAllEventsByCategoryIdAsync(Guid categoryId)
+    public async Task<IEnumerable<EventResponse>> GetAllEventsAsync()
     {
-        var entity = _cacheHandler.GetFromCache(_cacheKey)?
-            .Where(x => x.Category.Id == categoryId);
+        var events = await _cacheHandler.GetOrCreateAsync(_cacheKey, async () =>
+        {
+            var entities = await _eventRepository.GetAllAsync();
+            return entities
+                .Select(ApiMapper.MapToEventResponse)
+                .OrderByDescending(x => x.EventStartDate)
+                .ToList();
+        });
+        return events ?? Enumerable.Empty<EventResponse>();
+    }
 
-        if (entity != null)
-            return entity;
 
-        var categoryEvents = await _eventRepository.GetEventsByCategoryIdAsync(categoryId);
-        var response = categoryEvents
-            .Select(ApiMapper.MapToEventResponse)
-            .OrderByDescending(x => x.EventStartDate)
-            .ToList();
+    public async Task<IEnumerable<EventResponse>> GetAllEventsByCategoryIdAsync(Guid Id)
+    {
+        var cachedEvents = _cacheHandler.GetFromCache(_cacheKey);
+        if (cachedEvents != null)
+            return cachedEvents.Where(x => x.Category.Id == Id);
 
-        return response;
+        var entities = await _eventRepository.GetEventsByCategoryIdAsync(Id);
+
+        return entities.Select(ApiMapper.MapToEventResponse);
     }
 
     public async Task<EventResponse?> GetEventByIdAsync(Guid Id)
     {
-        var entity = _cacheHandler.GetFromCache(_cacheKey)?
-            .FirstOrDefault(x => x.Id == Id);
+        var cachedEvents = _cacheHandler.GetFromCache(_cacheKey);
+        if (cachedEvents != null)
+        {
+            var eventFromCache = cachedEvents.FirstOrDefault(x => x.Id == Id);
+            return eventFromCache;
+        }
+        var entity = await _eventRepository.GetByIdAsync(x => x.Id == Id);
+        if (entity == null)
+            return null;
 
-        if (entity != null)
-            return entity;
-
-        var response = await UpdateCacheAsync();
-        return response.FirstOrDefault(x => x.Id == Id);
+        return ApiMapper.MapToEventResponse(entity);
     }
 
     public async Task<EventResponse?> UpdateEventAsync(UpdateEventRequest requestData)
     {
         var entity = await _eventRepository.GetByIdAsync(x => x.Id == requestData.Id);
-        if (entity == null)
+        if (entity == null) 
             return null;
 
         ApiMapper.UpdateEventEntity(requestData, entity);
-        await _eventRepository.UpdateAsync(entity);
-
-        var response = await UpdateCacheAsync();
-        return response.FirstOrDefault(x => x.Id == entity.Id);
-    }
-
-    public async Task<IEnumerable<EventResponse>> UpdateCacheAsync()
-    {
-        var entities = await _eventRepository.GetAllAsync();
-        var responses = entities
-            .Select(ApiMapper.MapToEventResponse)
-            .OrderByDescending(x => x.EventStartDate)
-            .ToList();
-
-        _cacheHandler.SetCache(_cacheKey, responses);
-        return responses;
+        var success = await _eventRepository.UpdateAsync(entity);
+        if (!success)
+            return null;
+        _cacheHandler.RemoveCache(_cacheKey);
+        return ApiMapper.MapToEventResponse(entity);
     }
 }
