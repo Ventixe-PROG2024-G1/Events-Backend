@@ -20,7 +20,7 @@ namespace EventsWebApi.Controllers
             var result = await _eventService.CreateEventAsync(requestData);
 
             if (result == null)
-                return BadRequest("Failed to create Event");
+                return BadRequest("Failed to create an event");
 
             return CreatedAtAction(nameof(GetEvent), new { id = result.Id }, result);
         }
@@ -32,7 +32,7 @@ namespace EventsWebApi.Controllers
             return Ok(result);
         }
 
-        [HttpGet("{id}")]
+        [HttpGet("{id:guid}")]
         public async Task<IActionResult> GetEvent(Guid Id)
         {
             
@@ -44,7 +44,7 @@ namespace EventsWebApi.Controllers
             return Ok(result);
         }
 
-        [HttpDelete("{id}")]
+        [HttpDelete("{id:guid}")]
         public async Task<IActionResult> DeleteEvent(Guid Id)
         {
             var result = await _eventService.DeleteEventAsync(Id);
@@ -52,13 +52,19 @@ namespace EventsWebApi.Controllers
             if (!result)
                 return NotFound();
 
-            return Ok();
+            return NoContent();
         }
 
-        [HttpPut]
-        public async Task<IActionResult> UpdateEvent(UpdateEventRequest requestData)
+        [HttpPut("{id:guid}")]
+        public async Task<IActionResult> UpdateEvent(Guid id, UpdateEventRequest requestData)
         {
-            var result = await _eventService.UpdateEventAsync(requestData);
+            if (requestData.Id != Guid.Empty && id != requestData.Id)
+            {
+                return BadRequest("ID in URL does not match ID in request body.");
+            }
+
+
+            var result = await _eventService.UpdateEventAsync(id, requestData);
 
             if (result == null)
                 return NotFound();

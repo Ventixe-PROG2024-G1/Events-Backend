@@ -11,8 +11,10 @@ public interface ICategoryService
     Task<CategoryResponse?> CreateCategoryAsync(CreateCategoryRequest requestData);
     Task<bool> DeleteCategoryAsync(Guid Id);
     Task<IEnumerable<CategoryResponse>> GetAllCategoriesAsync();
-    Task<IEnumerable<CategoryResponse>> UpdateCacheAsync();
+    Task<CategoryResponse?> GetCategoryByIdAsync(Guid Id);
+    Task<CategoryResponse?> UpdateCategoryAsync(UpdateCategoryRequest requestData);
 }
+
 
 // Glöm inte Try catcha senare
 public class CategoryService(ICategoryRepository categoryRepository, ICacheHandler<IEnumerable<CategoryResponse>> cacheHandler) : ICategoryService
@@ -73,4 +75,17 @@ public class CategoryService(ICategoryRepository categoryRepository, ICacheHandl
         return categories ?? Enumerable.Empty<CategoryResponse>();
     }
 
+    public async Task<CategoryResponse?> UpdateCategoryAsync(UpdateCategoryRequest requestData)
+    {
+        var entity = await _categoryRepository.GetByIdAsync(x => x.Id == requestData.Id);
+        if (entity == null)
+            return null;
+
+        ApiMapper.UpdateCategoryEntity(requestData, entity);
+        var success = await _categoryRepository.UpdateAsync(entity);
+        if (!success)
+            return null;
+        _cacheHandler.RemoveCache(_cacheKey);
+        return ApiMapper.MapToCategoryResponse(entity);
+    }
 }

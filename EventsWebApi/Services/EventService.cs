@@ -9,12 +9,11 @@ namespace EventsWebApi.Services;
 public interface IEventService
 {
     Task<EventResponse?> CreateEventAsync(CreateEventRequest requestData);
-    Task<bool> DeleteEventAsync(Guid Id);
+    Task<bool> DeleteEventAsync(Guid id);
     Task<IEnumerable<EventResponse>> GetAllEventsAsync();
-    Task<IEnumerable<EventResponse>> GetAllEventsByCategoryIdAsync(Guid categoryId);
-    Task<EventResponse?> GetEventByIdAsync(Guid Id);
-    Task<IEnumerable<EventResponse>> UpdateCacheAsync();
-    Task<EventResponse?> UpdateEventAsync(UpdateEventRequest requestData);
+    Task<IEnumerable<EventResponse>> GetAllEventsByCategoryIdAsync(Guid id);
+    Task<EventResponse?> GetEventByIdAsync(Guid id);
+    Task<EventResponse?> UpdateEventAsync(Guid id, UpdateEventRequest requestData);
 }
 
 public class EventService(IEventRepository eventRepository, ICacheHandler<IEnumerable<EventResponse>> cacheHandler) : IEventService
@@ -36,9 +35,9 @@ public class EventService(IEventRepository eventRepository, ICacheHandler<IEnume
         return ApiMapper.MapToEventResponse(entity);
     }
 
-    public async Task<bool> DeleteEventAsync(Guid Id)
+    public async Task<bool> DeleteEventAsync(Guid id)
     {
-        var success = await _eventRepository.DeleteAsync(x => x.Id == Id);
+        var success = await _eventRepository.DeleteAsync(x => x.Id == id);
 
         if (success)
             _cacheHandler.RemoveCache(_cacheKey);
@@ -60,42 +59,46 @@ public class EventService(IEventRepository eventRepository, ICacheHandler<IEnume
     }
 
 
-    public async Task<IEnumerable<EventResponse>> GetAllEventsByCategoryIdAsync(Guid Id)
+    public async Task<IEnumerable<EventResponse>> GetAllEventsByCategoryIdAsync(Guid id)
     {
         var cachedEvents = _cacheHandler.GetFromCache(_cacheKey);
         if (cachedEvents != null)
-            return cachedEvents.Where(x => x.Category.Id == Id);
+            return cachedEvents.Where(x => x.Category.Id == id);
 
-        var entities = await _eventRepository.GetEventsByCategoryIdAsync(Id);
+        var entities = await _eventRepository.GetEventsByCategoryIdAsync(id);
 
         return entities.Select(ApiMapper.MapToEventResponse);
     }
 
-    public async Task<EventResponse?> GetEventByIdAsync(Guid Id)
+    public async Task<EventResponse?> GetEventByIdAsync(Guid id)
     {
         var cachedEvents = _cacheHandler.GetFromCache(_cacheKey);
         if (cachedEvents != null)
         {
-            var eventFromCache = cachedEvents.FirstOrDefault(x => x.Id == Id);
+            var eventFromCache = cachedEvents.FirstOrDefault(x => x.Id == id);
             return eventFromCache;
         }
-        var entity = await _eventRepository.GetByIdAsync(x => x.Id == Id);
+        var entity = await _eventRepository.GetByIdAsync(x => x.Id == id);
         if (entity == null)
             return null;
 
         return ApiMapper.MapToEventResponse(entity);
     }
 
-    public async Task<EventResponse?> UpdateEventAsync(UpdateEventRequest requestData)
+    public async Task<EventResponse?> UpdateEventAsync(Guid id, UpdateEventRequest requestData)
     {
-        var entity = await _eventRepository.GetByIdAsync(x => x.Id == requestData.Id);
-        if (entity == null) 
+        var entity = await _eventRepository.GetByIdAsync(x => x.Id == id);
+        if (entity == null)
             return null;
+
+        if (requestData.Id != Guid.Empty && id != requestData.Id)
+            throw new ArgumentException("ID mismatch between route and body");
 
         ApiMapper.UpdateEventEntity(requestData, entity);
         var success = await _eventRepository.UpdateAsync(entity);
         if (!success)
             return null;
+
         _cacheHandler.RemoveCache(_cacheKey);
         return ApiMapper.MapToEventResponse(entity);
     }
