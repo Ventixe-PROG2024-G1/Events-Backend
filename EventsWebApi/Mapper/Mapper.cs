@@ -10,6 +10,7 @@ public static partial class ApiMapper
 {
     public static partial EventEntity MapToEventEntity(CreateEventRequest source);
     public static partial EventResponse MapToEventResponse(EventEntity source);
+    public static partial EventCreatedResponse MapToEventCreatedResponse(EventEntity source);
     public static partial void UpdateEventEntity(UpdateEventRequest source, EventEntity target);
     public static partial IEnumerable<EventResponse> MapToEventResponseList(IEnumerable<EventEntity> source);
     public static partial CategoryEntity MapToCategoryEntity(CreateCategoryRequest source);

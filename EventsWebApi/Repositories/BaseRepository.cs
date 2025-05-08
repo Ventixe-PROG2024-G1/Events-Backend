@@ -2,65 +2,120 @@
 using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 
-namespace EventsWebApi.Repositories;
-
-public interface IBaseRepository<TEntity> where TEntity : class
+namespace EventsWebApi.Repositories
 {
-    Task<bool> AddAsync(TEntity entity);
-    Task<bool> DeleteAsync(Expression<Func<TEntity, bool>> predicate);
-    Task<IEnumerable<TEntity>> GetAllAsync();
-    Task<TEntity?> GetByIdAsync(Expression<Func<TEntity, bool>> predicate);
-    Task<bool> UpdateAsync(TEntity entity);
-}
-
-public abstract class BaseRepository<TEntity> : IBaseRepository<TEntity> where TEntity : class
-{
-    protected readonly ApplicationDbContext _context;
-    protected readonly DbSet<TEntity> _table;
-
-    protected BaseRepository(ApplicationDbContext context)
+    public interface IBaseRepository<TEntity> where TEntity : class
     {
-        _context = context;
-        _table = _context.Set<TEntity>();
+        Task<bool> AddAsync(TEntity entity);
+        Task<bool> DeleteAsync(Expression<Func<TEntity, bool>> predicate);
+        Task<IEnumerable<TEntity>> GetAllAsync();
+        Task<TEntity?> GetByIdAsync(Expression<Func<TEntity, bool>> predicate);
+        Task<bool> UpdateAsync(TEntity entity);
     }
 
-    public virtual async Task<bool> AddAsync(TEntity entity)
+    public abstract class BaseRepository<TEntity> : IBaseRepository<TEntity> where TEntity : class
     {
-        if (entity == null)
-            return false;
+        protected readonly ApplicationDbContext _context;
+        protected readonly DbSet<TEntity> _table;
 
-        await _table.AddAsync(entity);
-        await _context.SaveChangesAsync();
-        return true;
-    }
+        protected BaseRepository(ApplicationDbContext context)
+        {
+            _context = context;
+            _table = _context.Set<TEntity>();
+        }
 
-    public virtual async Task<bool> DeleteAsync(Expression<Func<TEntity, bool>> predicate)
-    {
-        if (predicate == null)
-            return false;
+        public virtual async Task<bool> AddAsync(TEntity entity)
+        {
+            if (entity == null)
+                return false;
 
-        var entity = await _table.FirstOrDefaultAsync(predicate);
-        if (entity == null)
-            return false;
+            try
+            {
+                await _table.AddAsync(entity);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (DbUpdateException) // Fånga specifikt databasuppdateringsfel
+            {
+                return false;
+            }
+            catch (Exception) // Fånga andra oväntade fel
+            {
+                return false;
+            }
+        }
 
-        _table.Remove(entity);
-        await _context.SaveChangesAsync();
-        return true;
-    }
+        public virtual async Task<bool> DeleteAsync(Expression<Func<TEntity, bool>> predicate)
+        {
+            if (predicate == null)
+                return false;
 
-    public virtual async Task<IEnumerable<TEntity>> GetAllAsync()
-        => await _table.ToListAsync();
+            try
+            {
+                var entity = await _table.FirstOrDefaultAsync(predicate);
+                if (entity == null)
+                    return false;
 
-    public virtual async Task<TEntity?> GetByIdAsync(Expression<Func<TEntity, bool>> predicate)
-        => await _table.FirstOrDefaultAsync(predicate);
+                _table.Remove(entity);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (DbUpdateException)
+            {
+                return false;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
 
-    public virtual async Task<bool> UpdateAsync(TEntity entity)
-    {
-        if (entity == null)
-            return false;
+        public virtual async Task<IEnumerable<TEntity>> GetAllAsync()
+        {
+            try
+            {
+                return await _table.ToListAsync();
+            }
+            catch (Exception)
+            {
+                return Enumerable.Empty<TEntity>();
+            }
+        }
 
-        _table.Update(entity);
-        await _context.SaveChangesAsync();
-        return true;
+        public virtual async Task<TEntity?> GetByIdAsync(Expression<Func<TEntity, bool>> predicate)
+        {
+            if (predicate == null)
+                return null;
+
+            try
+            {
+                return await _table.FirstOrDefaultAsync(predicate);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        public virtual async Task<bool> UpdateAsync(TEntity entity)
+        {
+            if (entity == null)
+                return false;
+
+            try
+            {
+                _table.Update(entity);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (DbUpdateException)
+            {
+                return false;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
     }
 }

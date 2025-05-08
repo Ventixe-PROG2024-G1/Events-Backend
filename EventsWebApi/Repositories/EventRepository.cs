@@ -35,4 +35,3 @@ public class EventRepository(ApplicationDbContext context) : BaseRepository<Even
             .ToListAsync();
     }
 }
-// Behövs override här? Vart mer behöver man Kategorier?
