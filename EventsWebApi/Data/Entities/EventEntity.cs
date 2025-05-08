@@ -13,7 +13,6 @@ public class EventEntity
     [Required]
     public string EventName { get; set; } = null!;
     public string? Description { get; set; }
-    public string? Location { get; set; }
     public Guid? EventImageId { get; set; }
 
     [ForeignKey(nameof(Category))]
@@ -26,4 +25,6 @@ public class EventEntity
     [Column(TypeName = "datetime2(0)")]
     public DateTime EventEndDate { get; set; }
     public EventStatus Status { get; set; }
+
+    public Guid? LocationId { get; set; }
 }

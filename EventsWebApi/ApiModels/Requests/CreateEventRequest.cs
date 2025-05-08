@@ -8,7 +8,6 @@ public class CreateEventRequest
     [Required]
     public string EventName { get; set; } = null!;
     public string? Description { get; set; }
-    public string? Location { get; set; }
 
     public Guid? EventImageId { get; set; }
 
@@ -26,4 +25,5 @@ public class CreateEventRequest
     [Required]
     [EnumDataType(typeof(EventStatus))]
     public EventStatus Status { get; set; } = EventStatus.Draft;
+    public Guid? LocationId { get; set; }
 }
