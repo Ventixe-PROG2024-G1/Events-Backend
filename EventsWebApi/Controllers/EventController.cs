@@ -1,6 +1,5 @@
 ﻿using EventsWebApi.ApiModels.Requests;
 using EventsWebApi.Services;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventsWebApi.Controllers

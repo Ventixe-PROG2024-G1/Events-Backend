@@ -1,6 +1,5 @@
 ﻿using EventsWebApi.Data.Context;
 using EventsWebApi.Handler;
-using EventsWebApi.Mapper;
 using EventsWebApi.Repositories;
 using EventsWebApi.Services;
 using Microsoft.EntityFrameworkCore;
