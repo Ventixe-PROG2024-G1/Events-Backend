@@ -17,35 +17,26 @@ namespace EventsWebApi.Services
         Task<EventResponse?> UpdateEventAsync(Guid id, UpdateEventRequest requestData);
     }
 
-    public class EventService : IEventService
+    public class EventService(IEventRepository eventRepository, ICacheHandler<IEnumerable<EventResponse>> cacheHandler) : IEventService
     {
-        private readonly IEventRepository _eventRepository;
-        private readonly ICacheHandler<IEnumerable<EventResponse>> _cacheHandler;
+        private readonly IEventRepository _eventRepository = eventRepository;
+        private readonly ICacheHandler<IEnumerable<EventResponse>> _cacheHandler = cacheHandler;
         private const string _cacheKey = "Events";
-
-        public EventService(
-            IEventRepository eventRepository,
-            ICacheHandler<IEnumerable<EventResponse>> cacheHandler)
-        {
-            _eventRepository = eventRepository;
-            _cacheHandler = cacheHandler;
-        }
 
         public async Task<EventCreatedResponse?> CreateEventAsync(CreateEventRequest requestData)
         {
             try
             {
-                var entity = ApiMapper.MapToEventEntity(requestData);
+                var entity = EntityMapper.MapToEventEntity(requestData);
                 var result = await _eventRepository.AddAsync(entity);
                 if (!result)
                     return null;
 
                 _cacheHandler.RemoveCache(_cacheKey);
-                return ApiMapper.MapToEventCreatedResponse(entity);
+                return ResponseMapper.MapToEventCreatedResponse(entity);
             }
             catch (Exception) // Fångar alla undantag
             {
-                // Potentiellt logga här om du hade en logger, annars bara hantera felet
                 return null; // Signalera misslyckande
             }
         }
@@ -75,7 +66,7 @@ namespace EventsWebApi.Services
                 {
                     var entities = await _eventRepository.GetAllAsync();
                     return entities
-                        .Select(ApiMapper.MapToEventResponse)
+                        .Select(ResponseMapper.MapToEventResponse)
                         .OrderByDescending(x => x.EventStartDate)
                         .ToList();
                 });
@@ -96,7 +87,7 @@ namespace EventsWebApi.Services
                     return cachedEvents.Where(x => x.Category.Id == categoryId);
 
                 var entities = await _eventRepository.GetEventsByCategoryIdAsync(categoryId);
-                return entities.Select(ApiMapper.MapToEventResponse);
+                return entities.Select(ResponseMapper.MapToEventResponse);
             }
             catch (Exception)
             {
@@ -112,16 +103,14 @@ namespace EventsWebApi.Services
                 if (cachedEvents != null)
                 {
                     var eventFromCache = cachedEvents.FirstOrDefault(x => x.Id == id);
-                    if (eventFromCache != null) // Lade till en null-koll här för säkerhets skull
-                    {
+                    if (eventFromCache != null)
                         return eventFromCache;
-                    }
                 }
                 var entity = await _eventRepository.GetByIdAsync(x => x.Id == id);
                 if (entity == null)
                     return null;
 
-                return ApiMapper.MapToEventResponse(entity);
+                return ResponseMapper.MapToEventResponse(entity);
             }
             catch (Exception)
             {
@@ -140,13 +129,13 @@ namespace EventsWebApi.Services
                 if (requestData.Id != Guid.Empty && id != requestData.Id)
                     throw new ArgumentException("ID mismatch between route and body");
 
-                ApiMapper.UpdateEventEntity(requestData, entity);
+                UpdateMapper.UpdateEventEntity(requestData, entity);
                 var success = await _eventRepository.UpdateAsync(entity);
                 if (!success)
                     return null;
 
                 _cacheHandler.RemoveCache(_cacheKey);
-                return ApiMapper.MapToEventResponse(entity);
+                return ResponseMapper.MapToEventResponse(entity);
             }
             catch (ArgumentException) // Fånga specifikt ArgumentException
             {

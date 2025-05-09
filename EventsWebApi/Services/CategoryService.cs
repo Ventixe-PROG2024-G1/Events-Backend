@@ -26,14 +26,14 @@ public class CategoryService(ICategoryRepository categoryRepository, ICacheHandl
 
     public async Task<CategoryResponse?> CreateCategoryAsync(CreateCategoryRequest requestData)
     {
-        var entity = ApiMapper.MapToCategoryEntity(requestData);
+        var entity = EntityMapper.MapToCategoryEntity(requestData);
         var result = await _categoryRepository.AddAsync(entity);
 
         if (!result)
             return null;
 
         _cacheHandler.RemoveCache(_cacheKey);
-        return ApiMapper.MapToCategoryResponse(entity);
+        return ResponseMapper.MapToCategoryResponse(entity);
     }
 
     public async Task<bool> DeleteCategoryAsync(Guid Id)
@@ -58,7 +58,7 @@ public class CategoryService(ICategoryRepository categoryRepository, ICacheHandl
         if (entity == null)
             return null;
 
-        return ApiMapper.MapToCategoryResponse(entity);
+        return ResponseMapper.MapToCategoryResponse(entity);
     }
 
     public async Task<IEnumerable<CategoryResponse>> GetAllCategoriesAsync()
@@ -68,7 +68,7 @@ public class CategoryService(ICategoryRepository categoryRepository, ICacheHandl
             var entities = await _categoryRepository.GetAllAsync();
 
             return entities
-                .Select(ApiMapper.MapToCategoryResponse)
+                .Select(ResponseMapper.MapToCategoryResponse)
                 .OrderBy(category => category.CategoryName)
                 .ToList();
         });
@@ -81,11 +81,11 @@ public class CategoryService(ICategoryRepository categoryRepository, ICacheHandl
         if (entity == null)
             return null;
 
-        ApiMapper.UpdateCategoryEntity(requestData, entity);
+        UpdateMapper.UpdateCategoryEntity(requestData, entity);
         var success = await _categoryRepository.UpdateAsync(entity);
         if (!success)
             return null;
         _cacheHandler.RemoveCache(_cacheKey);
-        return ApiMapper.MapToCategoryResponse(entity);
+        return ResponseMapper.MapToCategoryResponse(entity);
     }
 }
