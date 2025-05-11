@@ -6,7 +6,7 @@ public class CategoryEntity
 {
     [Key]
     [Required]
-    public Guid Id { get; set; }
+    public Guid Id { get; set; } = Guid.NewGuid();
 
     [Required]
     public string CategoryName { get; set; } = null!;
