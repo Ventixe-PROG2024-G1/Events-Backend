@@ -18,10 +18,12 @@ namespace EventsWebApi.Services
         Task<EventResponse?> UpdateEventAsync(Guid id, UpdateEventRequest requestData);
     }
 
-    public class EventService(IEventRepository eventRepository, ICacheHandler<EventResponse?> cacheHandler) : IEventService
+    public class EventService(IEventRepository eventRepository, ICacheHandler<EventResponse?> cacheHandler, ICacheHandler<IEnumerable<EventResponse>> cacheHandlerList) : IEventService
     {
         private readonly IEventRepository _eventRepository = eventRepository;
         private readonly ICacheHandler<EventResponse?> _cacheHandler = cacheHandler;
+        private readonly ICacheHandler<IEnumerable<EventResponse>> _cacheHandlerList = cacheHandlerList;
+        private const string _cacheKeyList = "EventsList";
 
         public async Task<EventCreatedResponse?> CreateEventAsync(CreateEventRequest requestData)
         {
@@ -32,7 +34,21 @@ namespace EventsWebApi.Services
                 if (!result)
                     return null;
 
-                return ResponseMapper.MapToEventCreatedResponse(entity);
+                var createdEntity = await _eventRepository.GetByIdAsync(x => x.Id == entity.Id);
+                if (createdEntity == null)
+                {
+                    return null;
+                }
+
+                var eventResponseCached = ResponseMapper.MapToEventResponse(createdEntity);
+                if (eventResponseCached != null)
+                    _cacheHandler.SetCache(createdEntity.Id.ToString(), eventResponseCached);
+
+
+                _cacheHandlerList.RemoveCache(_cacheKeyList); // Ta bort cache för listan
+                return ResponseMapper.MapToEventCreatedResponse(createdEntity);
+
+
             }
             catch (Exception) // Fångar alla undantag
             {
@@ -54,6 +70,29 @@ namespace EventsWebApi.Services
             catch (Exception)
             {
                 return false; // Signalera misslyckande
+            }
+        }
+
+        public async Task<IEnumerable<EventResponse>> GetAllEventsAsync()
+        {
+            try
+            {
+                var cachedEvents =  await _cacheHandlerList.GetOrCreateAsync(_cacheKeyList, async () =>
+                {
+                    var eventEntities = await _eventRepository.GetAllAsync();
+                    if (eventEntities == null || !eventEntities.Any())
+                        return Enumerable.Empty<EventResponse>(); // Ingen data hittades
+
+                    return ResponseMapper.MapToEventResponseList(eventEntities)
+                    .OrderBy(e => e.EventStartDate)
+                    .ToList();
+                });
+
+                return cachedEvents ?? Enumerable.Empty<EventResponse>(); // Ingen data hittades
+            }
+            catch (Exception)
+            {
+                return Enumerable.Empty<EventResponse>(); // Signalera misslyckande
             }
         }
 
@@ -125,7 +164,7 @@ namespace EventsWebApi.Services
                 .MapToEventResponseList(eventEntities)
                 .ToList();
 
-            // Är denna nödvändig?
+            // Är denna nödvändig? Kan den orsaka problem?
             foreach (var eventResponse in eventResponses)
             {
                 _cacheHandler.SetCache(eventResponse.Id.ToString(), eventResponse);

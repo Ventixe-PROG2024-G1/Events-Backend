@@ -73,7 +73,14 @@ namespace EventsWebApi.Repositories
 
         public virtual IQueryable<TEntity> GetQueryable()
         {
-            return _table.AsQueryable();
+            try
+            {
+                return _table.AsQueryable();
+            }
+            catch (Exception)
+            {
+                return Enumerable.Empty<TEntity>().AsQueryable();
+            }
         }
 
         public virtual async Task<IEnumerable<TEntity>> GetAllAsync()
