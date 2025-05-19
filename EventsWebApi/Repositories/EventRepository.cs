@@ -18,6 +18,11 @@ public class EventRepository(ApplicationDbContext context) : BaseRepository<Even
             .Include(x => x.Category);
     }
 
+    public override IQueryable<EventEntity> GetQueryable()
+    {
+        return Includes();
+    }
+
     public override async Task<IEnumerable<EventEntity>> GetAllAsync()
     {
         return await Includes().ToListAsync();

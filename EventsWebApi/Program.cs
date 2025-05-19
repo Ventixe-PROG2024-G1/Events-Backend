@@ -17,7 +17,7 @@ builder.Services.AddMemoryCache();
 
 builder.Services.AddDbContext<ApplicationDbContext>(x => x.UseSqlServer(builder.Configuration.GetConnectionString("SqlConnection")));
 
-builder.Services.AddScoped(typeof(ICacheHandler<>), typeof(CacheHandler<>));
+builder.Services.AddSingleton(typeof(ICacheHandler<>), typeof(CacheHandler<>));
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<IEventRepository, EventRepository>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();

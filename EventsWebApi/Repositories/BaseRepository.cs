@@ -11,6 +11,7 @@ namespace EventsWebApi.Repositories
         Task<IEnumerable<TEntity>> GetAllAsync();
         Task<TEntity?> GetByIdAsync(Expression<Func<TEntity, bool>> predicate);
         Task<bool> UpdateAsync(TEntity entity);
+        IQueryable<TEntity> GetQueryable();
     }
 
     public abstract class BaseRepository<TEntity> : IBaseRepository<TEntity> where TEntity : class
@@ -68,6 +69,11 @@ namespace EventsWebApi.Repositories
             {
                 return false;
             }
+        }
+
+        public virtual IQueryable<TEntity> GetQueryable()
+        {
+            return _table.AsQueryable();
         }
 
         public virtual async Task<IEnumerable<TEntity>> GetAllAsync()

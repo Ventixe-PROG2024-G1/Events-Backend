@@ -1,8 +1,10 @@
 ﻿using EventsWebApi.ApiModels.Requests;
 using EventsWebApi.ApiModels.Responses;
+using EventsWebApi.Data.Entities;
 using EventsWebApi.Handler;
 using EventsWebApi.Mapper;
 using EventsWebApi.Repositories;
+using Microsoft.EntityFrameworkCore;
 
 
 namespace EventsWebApi.Services
@@ -11,17 +13,15 @@ namespace EventsWebApi.Services
     {
         Task<EventCreatedResponse?> CreateEventAsync(CreateEventRequest requestData);
         Task<bool> DeleteEventAsync(Guid id);
-        Task<IEnumerable<EventResponse>> GetAllEventsAsync();
-        Task<IEnumerable<EventResponse>> GetAllEventsByCategoryIdAsync(Guid id);
         Task<EventResponse?> GetEventByIdAsync(Guid id);
+        Task<PagingEventResult> GetEventsPaginatedAsync(int pageNumber, int pageSize, string? categoryNameFilter, string? searchTerm, string? dateFilter, DateTime? specificDateFrom, DateTime? specificDateTo);
         Task<EventResponse?> UpdateEventAsync(Guid id, UpdateEventRequest requestData);
     }
 
-    public class EventService(IEventRepository eventRepository, ICacheHandler<IEnumerable<EventResponse>> cacheHandler) : IEventService
+    public class EventService(IEventRepository eventRepository, ICacheHandler<EventResponse?> cacheHandler) : IEventService
     {
         private readonly IEventRepository _eventRepository = eventRepository;
-        private readonly ICacheHandler<IEnumerable<EventResponse>> _cacheHandler = cacheHandler;
-        private const string _cacheKey = "Events";
+        private readonly ICacheHandler<EventResponse?> _cacheHandler = cacheHandler;
 
         public async Task<EventCreatedResponse?> CreateEventAsync(CreateEventRequest requestData)
         {
@@ -32,7 +32,6 @@ namespace EventsWebApi.Services
                 if (!result)
                     return null;
 
-                _cacheHandler.RemoveCache(_cacheKey);
                 return ResponseMapper.MapToEventCreatedResponse(entity);
             }
             catch (Exception) // Fångar alla undantag
@@ -48,7 +47,7 @@ namespace EventsWebApi.Services
                 var success = await _eventRepository.DeleteAsync(x => x.Id == id);
 
                 if (success)
-                    _cacheHandler.RemoveCache(_cacheKey);
+                    _cacheHandler.RemoveCache(id.ToString());
 
                 return success;
             }
@@ -58,59 +57,92 @@ namespace EventsWebApi.Services
             }
         }
 
-        public async Task<IEnumerable<EventResponse>> GetAllEventsAsync()
+        public async Task<PagingEventResult> GetEventsPaginatedAsync(int pageNumber, int pageSize, string? categoryNameFilter, string? searchTerm, string? dateFilter, DateTime? specificDateFrom, DateTime? specificDateTo)
         {
-            try
+            IQueryable<EventEntity> query = _eventRepository.GetQueryable();
+
+            if (!string.IsNullOrEmpty(categoryNameFilter))
+                query = query.Where(x => x.Category != null && x.Category.CategoryName.ToLower() == categoryNameFilter.ToLower());
+
+
+            if (!string.IsNullOrWhiteSpace(dateFilter))
             {
-                var events = await _cacheHandler.GetOrCreateAsync(_cacheKey, async () =>
+                DateTime now = DateTime.UtcNow.Date;
+                DateTime startDateRange = now;
+                DateTime endDateRange;
+
+                switch (dateFilter.ToLowerInvariant())
                 {
-                    var entities = await _eventRepository.GetAllAsync();
-                    return entities
-                        .Select(ResponseMapper.MapToEventResponse)
-                        .OrderByDescending(x => x.EventStartDate)
-                        .ToList();
-                });
-                return events ?? Enumerable.Empty<EventResponse>();
+                    case "thisweek":
+                        endDateRange = now.AddDays(7);
+                        query = query.Where(e => e.EventStartDate >= startDateRange && e.EventStartDate < endDateRange);
+                        break;
+                    case "thismonth":
+                        endDateRange = now.AddDays(30);
+                        query = query.Where(e => e.EventStartDate >= startDateRange && e.EventStartDate < endDateRange);
+                        break;
+                    case "thisyear":
+                        endDateRange = now.AddDays(365);
+                        query = query.Where(e => e.EventStartDate >= startDateRange && e.EventStartDate < endDateRange);
+                        break;
+                    case "upcoming":
+                        query = query.Where(e => e.EventStartDate >= now);
+                        break;
+                    case "past":
+                        query = query.Where(e => e.EventStartDate < now);
+                        break;
+                }
             }
-            catch (Exception)
+            else
             {
-                return Enumerable.Empty<EventResponse>(); // Signalera misslyckande
+                if (specificDateFrom.HasValue)
+                {
+                    query = query.Where(e => e.EventStartDate >= specificDateFrom.Value.Date);
+                }
+                if (specificDateTo.HasValue)
+                {
+                    query = query.Where(e => e.EventStartDate < specificDateTo.Value.Date.AddDays(1));
+                }
             }
-        }
 
-        public async Task<IEnumerable<EventResponse>> GetAllEventsByCategoryIdAsync(Guid categoryId)
-        {
-            try
+            if (!string.IsNullOrWhiteSpace(searchTerm))
             {
-                var cachedEvents = _cacheHandler.GetFromCache(_cacheKey);
-                if (cachedEvents != null)
-                    return cachedEvents.Where(x => x.Category.Id == categoryId);
+                string lowerSearchTerm = searchTerm.ToLower();
+                query = query.Where(e => (e.EventName != null && e.EventName.ToLower().Contains(lowerSearchTerm)) ||
+                                         (e.Description != null && e.Description.ToLower().Contains(lowerSearchTerm)) ||
+                                         (e.Category != null && e.Category.CategoryName != null && e.Category.CategoryName.ToLower().Contains(lowerSearchTerm)));
+            }
+            query = query.OrderBy(e => e.EventStartDate);
 
-                var entities = await _eventRepository.GetEventsByCategoryIdAsync(categoryId);
-                return entities.Select(ResponseMapper.MapToEventResponse);
-            }
-            catch (Exception)
+            var totalCount = await query.CountAsync();
+
+            var eventEntities = await query
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            List<EventResponse> eventResponses = ResponseMapper
+                .MapToEventResponseList(eventEntities)
+                .ToList();
+
+            // Är denna nödvändig?
+            foreach (var eventResponse in eventResponses)
             {
-                return Enumerable.Empty<EventResponse>(); // Signalera misslyckande
+                _cacheHandler.SetCache(eventResponse.Id.ToString(), eventResponse);
             }
+
+            return new PagingEventResult(eventResponses, pageNumber, pageSize, totalCount);
         }
 
         public async Task<EventResponse?> GetEventByIdAsync(Guid id)
         {
             try
             {
-                var cachedEvents = _cacheHandler.GetFromCache(_cacheKey);
-                if (cachedEvents != null)
+                return await _cacheHandler.GetOrCreateAsync(id.ToString(), async () =>
                 {
-                    var eventFromCache = cachedEvents.FirstOrDefault(x => x.Id == id);
-                    if (eventFromCache != null)
-                        return eventFromCache;
-                }
-                var entity = await _eventRepository.GetByIdAsync(x => x.Id == id);
-                if (entity == null)
-                    return null;
-
-                return ResponseMapper.MapToEventResponse(entity);
+                    var entity = await _eventRepository.GetByIdAsync(x => x.Id == id);
+                    return entity != null ? ResponseMapper.MapToEventResponse(entity) : null;
+                });
             }
             catch (Exception)
             {
@@ -134,7 +166,7 @@ namespace EventsWebApi.Services
                 if (!success)
                     return null;
 
-                _cacheHandler.RemoveCache(_cacheKey);
+                _cacheHandler.RemoveCache(id.ToString());
                 return ResponseMapper.MapToEventResponse(entity);
             }
             catch (ArgumentException) // Fånga specifikt ArgumentException

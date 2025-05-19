@@ -42,18 +42,18 @@ namespace EventsWebApi.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAllEvents()
+        public async Task<IActionResult> GetEvents([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10, [FromQuery] string? categoryNameFilter = null,[FromQuery] Guid? categoryIdFilter = null, [FromQuery] string? searchTerm = null, [FromQuery] string? dateFilter = null, [FromQuery] DateTime? specificDateFrom = null, [FromQuery] DateTime? specificDateTo = null)
         {
-            _logger.LogInformation("Attempting to retrieve all events.");
+            _logger.LogInformation("Attempting to retrieve events with filters: Page={Page}, Size={Size}, Category={Category}, Search={Search}, DateFilter={DateFilter}",
+                pageNumber, pageSize, categoryNameFilter ?? categoryIdFilter?.ToString() ?? "N/A", searchTerm ?? "N/A", dateFilter ?? "N/A");
             try
             {
-                var result = await _eventService.GetAllEventsAsync();
-                _logger.LogInformation("Successfully retrieved all events.");
+                var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, categoryNameFilter, searchTerm, dateFilter, specificDateFrom, specificDateTo);
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An unexpected error occurred while retrieving all events.");
+                _logger.LogError(ex, "An unexpected error occurred while retrieving events with filters: {Filters}", new { pageNumber, pageSize, categoryNameFilter, searchTerm, dateFilter, specificDateFrom, specificDateTo });
                 return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while processing your request.");
             }
         }
