@@ -61,6 +61,7 @@ namespace EventsWebApi.Controllers
         [HttpGet]
         public async Task<IActionResult> GetPagingEvents([FromQuery] GetEventQuery queryParams)
         {
+            _logger.LogInformation("Attempting to retrieve events with filters: {Filters}", queryParams);
             try
             {
                 var result = await _eventService.GetEventsPaginatedAsync(
@@ -75,7 +76,7 @@ namespace EventsWebApi.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An unexpected error occurred while retrieving events with filters: {Filters}", new { pageNumber, pageSize, categoryNameFilter, searchTerm, dateFilter, specificDateFrom, specificDateTo });
+                _logger.LogError(ex, "An unexpected error occurred while retrieving events with filters: {Filters}", queryParams);
                 return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while processing your request.");
             }
         }
