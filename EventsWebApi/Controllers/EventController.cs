@@ -1,4 +1,5 @@
-﻿using EventsWebApi.ApiModels.Requests;
+﻿using EventsWebApi.ApiModels.DTO;
+using EventsWebApi.ApiModels.Requests;
 using EventsWebApi.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,7 +10,7 @@ namespace EventsWebApi.Controllers
     public class EventController(IEventService eventService, ILogger<EventController> logger) : ControllerBase
     {
         private readonly IEventService _eventService = eventService;
-        private readonly ILogger<EventController> _logger = logger; // Tillagd logger
+        private readonly ILogger<EventController> _logger = logger;
 
         [HttpPost]
         public async Task<IActionResult> CreateEvent(CreateEventRequest requestData)
@@ -32,7 +33,7 @@ namespace EventsWebApi.Controllers
                 }
 
                 _logger.LogInformation("Event created successfully with ID: {EventId} for event name: {EventName}", result.Id, requestData.EventName);
-                return CreatedAtAction(nameof(GetEvent), new { id = result.Id }, result);
+                return CreatedAtAction(nameof(GetEventById), new { id = result.Id }, result);
             }
             catch (Exception ex)
             {
@@ -41,14 +42,35 @@ namespace EventsWebApi.Controllers
             }
         }
 
-        [HttpGet]
-        public async Task<IActionResult> GetEvents([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10, [FromQuery] string? categoryNameFilter = null,[FromQuery] Guid? categoryIdFilter = null, [FromQuery] string? searchTerm = null, [FromQuery] string? dateFilter = null, [FromQuery] DateTime? specificDateFrom = null, [FromQuery] DateTime? specificDateTo = null)
+        [HttpGet("all")]
+        public async Task <IActionResult> GetAllEvents()
         {
-            _logger.LogInformation("Attempting to retrieve events with filters: Page={Page}, Size={Size}, Category={Category}, Search={Search}, DateFilter={DateFilter}",
-                pageNumber, pageSize, categoryNameFilter ?? categoryIdFilter?.ToString() ?? "N/A", searchTerm ?? "N/A", dateFilter ?? "N/A");
+            _logger.LogInformation("Attempting to retrieve all events.");
             try
             {
-                var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, categoryNameFilter, searchTerm, dateFilter, specificDateFrom, specificDateTo);
+                var result = await _eventService.GetAllEventsAsync();
+                return Ok(result);
+            }
+            catch (Exception)
+            {
+                _logger.LogError("An unexpected error occurred while retrieving all events.");
+                return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while processing your request.");
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetPagingEvents([FromQuery] GetEventQuery queryParams)
+        {
+            try
+            {
+                var result = await _eventService.GetEventsPaginatedAsync(
+                    queryParams.PageNumber, 
+                    queryParams.PageSize, 
+                    queryParams.CategoryNameFilter,
+                    queryParams.SearchTerm, 
+                    queryParams.DateFilter, 
+                    queryParams.SpecificDateFrom, 
+                    queryParams.SpecificDateTo);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -58,8 +80,8 @@ namespace EventsWebApi.Controllers
             }
         }
 
-        [HttpGet("{id:guid}")]
-        public async Task<IActionResult> GetEvent(Guid id)
+        [HttpGet("{id:guid}", Name = "GetEventById")]
+        public async Task<IActionResult> GetEventById(Guid id)
         {
             _logger.LogInformation("Attempting to retrieve event with ID: {EventId}", id);
             try

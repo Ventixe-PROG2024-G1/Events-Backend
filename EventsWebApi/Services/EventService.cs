@@ -13,6 +13,7 @@ namespace EventsWebApi.Services
     {
         Task<EventCreatedResponse?> CreateEventAsync(CreateEventRequest requestData);
         Task<bool> DeleteEventAsync(Guid id);
+        Task<IEnumerable<EventResponse>> GetAllEventsAsync();
         Task<EventResponse?> GetEventByIdAsync(Guid id);
         Task<PagingEventResult> GetEventsPaginatedAsync(int pageNumber, int pageSize, string? categoryNameFilter, string? searchTerm, string? dateFilter, DateTime? specificDateFrom, DateTime? specificDateTo);
         Task<EventResponse?> UpdateEventAsync(Guid id, UpdateEventRequest requestData);
