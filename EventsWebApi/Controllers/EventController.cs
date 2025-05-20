@@ -15,12 +15,10 @@ namespace EventsWebApi.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateEvent(CreateEventRequest requestData)
         {
-            _logger.LogInformation("Attempting to create event with name: {EventName}", requestData.EventName);
             try
             {
                 if (!ModelState.IsValid)
                 {
-                    _logger.LogWarning("CreateEvent failed due to invalid model state for event: {EventName}", requestData.EventName);
                     return BadRequest(ModelState);
                 }
 
@@ -28,16 +26,13 @@ namespace EventsWebApi.Controllers
 
                 if (result == null)
                 {
-                    _logger.LogWarning("Service failed to create event with name: {EventName}", requestData.EventName);
                     return BadRequest("Failed to create an event");
                 }
 
-                _logger.LogInformation("Event created successfully with ID: {EventId} for event name: {EventName}", result.Id, requestData.EventName);
                 return CreatedAtAction(nameof(GetEventById), new { id = result.Id }, result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An unexpected error occurred while creating event with name: {EventName}", requestData.EventName);
                 return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while processing your request.");
             }
         }
@@ -45,7 +40,6 @@ namespace EventsWebApi.Controllers
         [HttpGet("all")]
         public async Task <IActionResult> GetAllEvents()
         {
-            _logger.LogInformation("Attempting to retrieve all events.");
             try
             {
                 var result = await _eventService.GetAllEventsAsync();
@@ -53,7 +47,6 @@ namespace EventsWebApi.Controllers
             }
             catch (Exception)
             {
-                _logger.LogError("An unexpected error occurred while retrieving all events.");
                 return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while processing your request.");
             }
         }
@@ -61,7 +54,6 @@ namespace EventsWebApi.Controllers
         [HttpGet]
         public async Task<IActionResult> GetPagingEvents([FromQuery] GetEventQuery queryParams)
         {
-            _logger.LogInformation("Attempting to retrieve events with filters: {Filters}", queryParams);
             try
             {
                 var result = await _eventService.GetEventsPaginatedAsync(
@@ -76,7 +68,6 @@ namespace EventsWebApi.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An unexpected error occurred while retrieving events with filters: {Filters}", queryParams);
                 return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while processing your request.");
             }
         }
@@ -84,7 +75,6 @@ namespace EventsWebApi.Controllers
         [HttpGet("{id:guid}", Name = "GetEventById")]
         public async Task<IActionResult> GetEventById(Guid id)
         {
-            _logger.LogInformation("Attempting to retrieve event with ID: {EventId}", id);
             try
             {
                 var result = await _eventService.GetEventByIdAsync(id);
@@ -95,12 +85,10 @@ namespace EventsWebApi.Controllers
                     return NotFound();
                 }
 
-                _logger.LogInformation("Successfully retrieved event with ID: {EventId}", id);
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An unexpected error occurred while retrieving event with ID: {EventId}", id);
                 return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while processing your request.");
             }
         }
@@ -108,23 +96,19 @@ namespace EventsWebApi.Controllers
         [HttpDelete("{id:guid}")]
         public async Task<IActionResult> DeleteEvent(Guid id)
         {
-            _logger.LogInformation("Attempting to delete event with ID: {EventId}", id);
             try
             {
                 var result = await _eventService.DeleteEventAsync(id);
 
                 if (!result)
                 {
-                    _logger.LogWarning("Service failed to delete event or event with ID: {EventId} not found.", id);
                     return NotFound();
                 }
 
-                _logger.LogInformation("Event with ID: {EventId} deleted successfully.", id);
                 return NoContent();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An unexpected error occurred while deleting event with ID: {EventId}", id);
                 return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while processing your request.");
             }
         }
@@ -132,12 +116,10 @@ namespace EventsWebApi.Controllers
         [HttpPut("{id:guid}")]
         public async Task<IActionResult> UpdateEvent(Guid id, UpdateEventRequest requestData)
         {
-            _logger.LogInformation("Attempting to update event with ID: {EventId}", id);
             try
             {
                 if (requestData.Id != Guid.Empty && id != requestData.Id)
                 {
-                    _logger.LogWarning("UpdateEvent failed for ID: {RouteId}. ID in URL does not match ID in request body: {BodyId}", id, requestData.Id);
                     return BadRequest("ID in URL does not match ID in request body.");
                 }
 
@@ -145,16 +127,13 @@ namespace EventsWebApi.Controllers
 
                 if (result == null)
                 {
-                    _logger.LogWarning("Service failed to update event or event with ID: {EventId} not found.", id);
                     return NotFound();
                 }
 
-                _logger.LogInformation("Event with ID: {EventId} updated successfully.", id);
                 return Ok(result);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "An unexpected error occurred while updating event with ID: {EventId}", id);
                 return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while processing your request.");
             }
         }
