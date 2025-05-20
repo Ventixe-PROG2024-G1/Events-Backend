@@ -152,7 +152,14 @@ namespace EventsWebApi.Services
                                          (e.Description != null && e.Description.ToLower().Contains(lowerSearchTerm)) ||
                                          (e.Category != null && e.Category.CategoryName != null && e.Category.CategoryName.ToLower().Contains(lowerSearchTerm)));
             }
-            query = query.OrderBy(e => e.EventStartDate);
+            if (dateFilter != null && dateFilter.ToLowerInvariant() == "past")
+            {
+                query = query.OrderByDescending(e => e.EventStartDate);
+            }
+            else
+            {
+                query = query.OrderBy(e => e.EventStartDate);
+            }
 
             var totalCount = await query.CountAsync();
 

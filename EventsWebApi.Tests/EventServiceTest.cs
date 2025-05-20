@@ -9,6 +9,7 @@ using EventsWebApi.Services;
 using Microsoft.EntityFrameworkCore.Query;
 using Moq;
 using System.Linq.Expressions;
+using MockQueryable;
 
 namespace EventsWebApi.Tests;
 
@@ -31,25 +32,59 @@ public class EventServiceTest
     }
 
     [Fact]
-    public async Task CreateEventAsync_ValidRequest_ReturnsEventCreatedResponse()
+    public async Task CreateEventAsync_ValidRequest_ReturnsEventCreatedResponseAndCaches()
     {
         // Arrange
+        var testEventId = Guid.NewGuid(); // Använd ett konsekvent ID genom hela testet
+        var testCategoryId = Guid.NewGuid();
+
         var request = new CreateEventRequest
         {
             EventName = "Test Event",
-            CategoryId = Guid.NewGuid(),
+            CategoryId = testCategoryId,
             EventStartDate = DateTime.UtcNow,
             EventEndDate = DateTime.UtcNow.AddHours(2),
             Status = EventStatus.Active
         };
-        var eventEntity = EntityMapper.MapToEventEntity(request);
-        eventEntity.Id = Guid.NewGuid(); // Ensure Id is set for the created entity
 
-        _mockEventRepository.Setup(repo => repo.AddAsync(It.IsAny<EventEntity>())).ReturnsAsync(true);
-        _mockEventRepository.Setup(repo => repo.GetByIdAsync(It.IsAny<Expression<Func<EventEntity, bool>>>()))
-            .ReturnsAsync(eventEntity); // Return the entity with an Id
+        // Detta är entiteten som vi FÖRVÄNTAR OSS att GetByIdAsync ska returnera
+        // Den ska ha ID satt och Category populerad, precis som den riktiga GetByIdAsync skulle göra.
+        var fullyPopulatedEntityFromDbMock = new EventEntity
+        {
+            Id = testEventId, // Samma ID som AddAsync-mocken kommer att "sätta"
+            EventName = request.EventName,
+            Description = request.Description, // Se till att alla relevanta fält finns med
+            CategoryId = testCategoryId,
+            Category = new CategoryEntity { Id = testCategoryId, CategoryName = "Mocked Category" },
+            EventStartDate = request.EventStartDate,
+            EventEndDate = request.EventEndDate,
+            Status = request.Status
+            // ... andra fält från request ...
+        };
 
-        var expectedResponse = ResponseMapper.MapToEventCreatedResponse(eventEntity);
+        _mockEventRepository.Setup(repo => repo.AddAsync(It.IsAny<EventEntity>()))
+            .ReturnsAsync((EventEntity entityPassedToService) => {
+                entityPassedToService.Id = testEventId;
+                return true;
+            });
+
+        _mockEventRepository
+            .Setup(repo => repo.GetByIdAsync(It.IsAny<Expression<Func<EventEntity, bool>>>())) // Matcha vilket predikat som helst först
+            .ReturnsAsync((Expression<Func<EventEntity, bool>> predicate) =>
+            {
+                var entityToTestPredicateWith = new EventEntity { Id = testEventId };
+
+                if (predicate.Compile()(entityToTestPredicateWith)) 
+                {
+
+                    return fullyPopulatedEntityFromDbMock;
+                }
+                return null;
+            });
+
+        var expectedResponse = ResponseMapper.MapToEventCreatedResponse(fullyPopulatedEntityFromDbMock);
+        var expectedCachedResponse = ResponseMapper.MapToEventResponse(fullyPopulatedEntityFromDbMock);
+
 
         // Act
         var result = await _eventService.CreateEventAsync(request);
@@ -58,7 +93,11 @@ public class EventServiceTest
         Assert.NotNull(result);
         Assert.Equal(expectedResponse.Id, result.Id);
         Assert.Equal(expectedResponse.EventName, result.EventName);
-        _mockCacheHandler.Verify(cache => cache.SetCache(eventEntity.Id.ToString(), It.IsAny<EventResponse>(), It.IsAny<int>()), Times.Once);
+        _mockCacheHandler.Verify(cache => cache.SetCache(
+            testEventId.ToString(),
+            It.Is<EventResponse>(er => er.Id == expectedCachedResponse.Id && er.EventName == expectedCachedResponse.EventName), // Mer specifik matchning av objektet
+            It.IsAny<int>()),
+            Times.Once);
         _mockCacheHandlerList.Verify(cache => cache.RemoveCache("EventsList"), Times.Once);
     }
 
@@ -266,7 +305,13 @@ public class EventServiceTest
             .Returns(async (string key, Func<Task<EventResponse?>> factory, int minutes) =>
             {
                 _mockEventRepository.Setup(repo => repo.GetByIdAsync(It.IsAny<Expression<Func<EventEntity, bool>>>()))
-                    .ReturnsAsync(eventEntity);
+                    .ReturnsAsync((Expression<Func<EventEntity, bool>> predicate) =>
+                    {
+                        // Simulate the predicate evaluation
+                        if (predicate.Compile().Invoke(eventEntity))
+                            return eventEntity;
+                        return null;
+                    });
                 return await factory();
             });
 
@@ -446,8 +491,8 @@ public class EventServiceTest
             new() { Id = Guid.NewGuid(), EventName = "Event 3", EventStartDate = DateTime.UtcNow.AddDays(3), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat3" } }
         };
 
-        // Mock IQueryable and its async operations
-        var mockQueryable = allEntities.AsQueryable();
+        // Use MockQueryable to create a mock IQueryable that supports async
+        var mockQueryable = allEntities.AsQueryable().BuildMock();
 
         _mockEventRepository.Setup(repo => repo.GetQueryable()).Returns(mockQueryable);
 
@@ -477,7 +522,7 @@ public class EventServiceTest
             new() { Id = Guid.NewGuid(), EventName = "Event 2", EventStartDate = DateTime.UtcNow.AddDays(2), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "OtherCat" } },
             new() { Id = Guid.NewGuid(), EventName = "Event 3", EventStartDate = DateTime.UtcNow.AddDays(3), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = categoryFilter } }
         };
-        var mockQueryable = allEntities.AsQueryable();
+        var mockQueryable = allEntities.AsQueryable().BuildMock();
         _mockEventRepository.Setup(repo => repo.GetQueryable()).Returns(mockQueryable);
 
         // Act
@@ -504,7 +549,8 @@ public class EventServiceTest
             new() { Id = Guid.NewGuid(), EventName = "Event Three", Description = "Desc3", EventStartDate = DateTime.UtcNow.AddDays(3), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat UniqueName Three" } },
             new() { Id = Guid.NewGuid(), EventName = "Event Four", Description = "Desc4", EventStartDate = DateTime.UtcNow.AddDays(4), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat4" } }
         };
-        var mockQueryable = allEntities.AsQueryable();
+        // Use BuildMock() to enable async operations
+        var mockQueryable = allEntities.AsQueryable().BuildMock(); 
         _mockEventRepository.Setup(repo => repo.GetQueryable()).Returns(mockQueryable);
 
         // Act
@@ -534,7 +580,7 @@ public class EventServiceTest
             new() { Id = Guid.NewGuid(), EventName = "Event In 8 Days", EventStartDate = now.AddDays(8), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat" } }, // Outside this week
             new() { Id = Guid.NewGuid(), EventName = "Event Yesterday", EventStartDate = now.AddDays(-1), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat" } } // Outside this week (past)
         };
-        var mockQueryable = allEntities.AsQueryable();
+        var mockQueryable = allEntities.AsQueryable().BuildMock();
         _mockEventRepository.Setup(repo => repo.GetQueryable()).Returns(mockQueryable);
 
         // Act
@@ -565,7 +611,7 @@ public class EventServiceTest
             new() { Id = Guid.NewGuid(), EventName = "Event Day 5", EventStartDate = dateTo, Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat" } }, // Inside range (boundary)
             new() { Id = Guid.NewGuid(), EventName = "Event Day 6", EventStartDate = DateTime.UtcNow.Date.AddDays(6), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat" } }  // After range
         };
-        var mockQueryable = allEntities.AsQueryable();
+        var mockQueryable = allEntities.AsQueryable().BuildMock();
         _mockEventRepository.Setup(repo => repo.GetQueryable()).Returns(mockQueryable);
 
         // Act
@@ -596,7 +642,8 @@ public class EventServiceTest
             new() { Id = Guid.NewGuid(), EventName = "Event In 5 Days", EventStartDate = now.AddDays(5), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat" } }
         }.AsQueryable();
 
-        _mockEventRepository.Setup(repo => repo.GetQueryable()).Returns(allEntities);
+        var mockQueryable = allEntities.AsQueryable().BuildMock();
+        _mockEventRepository.Setup(repo => repo.GetQueryable()).Returns(mockQueryable);
 
         // Act
         var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, null, null, dateFilter, null, null);
@@ -609,6 +656,37 @@ public class EventServiceTest
         Assert.Equal("Event Tomorrow", result.Events[1].EventName);
         Assert.Equal("Event In 5 Days", result.Events[2].EventName);
         Assert.True(result.Events.All(e => e.EventStartDate >= now));
+    }
+
+    [Fact]
+    public async Task GetEventsPaginatedAsync_WithDateFilterPast_ReturnsFilteredAndOrderedResult()
+    {
+        // Arrange
+        int pageNumber = 1;
+        int pageSize = 5;
+        string dateFilter = "past";
+        DateTime now = DateTime.UtcNow.Date;
+        var allEntities = new List<EventEntity>
+        {
+            new() { Id = Guid.NewGuid(), EventName = "Event Yesterday", EventStartDate = now.AddDays(-1), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat" } },
+            new() { Id = Guid.NewGuid(), EventName = "Event 5 Days Ago", EventStartDate = now.AddDays(-5), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat" } },
+            new() { Id = Guid.NewGuid(), EventName = "Event Today", EventStartDate = now, Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat" } }, // Should be excluded
+            new() { Id = Guid.NewGuid(), EventName = "Event Tomorrow", EventStartDate = now.AddDays(1), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat" } } // Should be excluded
+        }.AsQueryable();
+
+        var mockQueryable = allEntities.AsQueryable().BuildMock();
+        _mockEventRepository.Setup(repo => repo.GetQueryable()).Returns(mockQueryable);
+
+        // Act
+        var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, null, null, dateFilter, null, null);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(2, result.TotalCount);
+        Assert.Equal(2, result.Events.Count);
+        Assert.Equal("Event Yesterday", result.Events[0].EventName);
+        Assert.Equal("Event 5 Days Ago", result.Events[1].EventName);
+        Assert.True(result.Events.All(e => e.EventStartDate < now));
     }
 }
 
