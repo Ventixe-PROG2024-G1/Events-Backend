@@ -8,11 +8,7 @@ using EventsWebApi.Repositories;
 using EventsWebApi.Services;
 using Microsoft.EntityFrameworkCore.Query;
 using Moq;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Linq.Expressions;
-using System.Threading.Tasks;
 
 namespace EventsWebApi.Tests;
 
@@ -211,12 +207,9 @@ public class EventServiceTest
         var expectedResponses = ResponseMapper.MapToEventResponseList(eventEntities).OrderBy(e => e.EventStartDate).ToList();
 
         _mockCacheHandlerList.Setup(cache => cache.GetOrCreateAsync("EventsList", It.IsAny<Func<Task<IEnumerable<EventResponse>?>>>(), It.IsAny<int>()))
-            .Returns(async (string key, Func<Task<IEnumerable<EventResponse>?>> factory, int minutes) =>
-            {
-                _mockEventRepository.Setup(repo => repo.GetAllAsync()).ReturnsAsync(eventEntities);
-                return await factory();
-            });
+            .Returns(async (string key, Func<Task<IEnumerable<EventResponse>?>> factory, int minutes) => await factory());
 
+        _mockEventRepository.Setup(repo => repo.GetAllAsync()).ReturnsAsync(eventEntities);
 
         // Act
         var result = await _eventService.GetAllEventsAsync();
@@ -337,6 +330,27 @@ public class EventServiceTest
         Assert.Equal(request.EventName, result.EventName);
         _mockCacheHandler.Verify(cache => cache.RemoveCache(eventId.ToString()), Times.Once);
         _mockEventRepository.Verify(repo => repo.UpdateAsync(It.Is<EventEntity>(e => e.EventName == request.EventName)), Times.Once);
+    }
+
+    [Fact]
+    public async Task UpdateEventAsync_ValidRequest_EmptyRequestIdInBody_ReturnsUpdatedEventResponse()
+    {
+        // Arrange
+        var eventId = Guid.NewGuid();
+        var request = new UpdateEventRequest { Id = Guid.Empty, EventName = "Updated Event Name Via Empty Body Id" }; // Id is Empty
+        var existingEntity = new EventEntity { Id = eventId, EventName = "Old Name", Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Test" } };
+
+        _mockEventRepository.Setup(repo => repo.GetByIdAsync(It.IsAny<Expression<Func<EventEntity, bool>>>()))
+                            .ReturnsAsync(existingEntity);
+        _mockEventRepository.Setup(repo => repo.UpdateAsync(It.IsAny<EventEntity>())).ReturnsAsync(true);
+
+        // Act
+        var result = await _eventService.UpdateEventAsync(eventId, request);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(request.EventName, result.EventName);
+        _mockCacheHandler.Verify(cache => cache.RemoveCache(eventId.ToString()), Times.Once);
     }
 
     [Fact]
@@ -500,9 +514,9 @@ public class EventServiceTest
         Assert.NotNull(result);
         Assert.Equal(3, result.TotalCount);
         Assert.Equal(3, result.Events.Count);
-        Assert.True(result.Events.Any(e => e.EventName.Contains(searchTerm)));
-        Assert.True(result.Events.Any(e => e.Description != null && e.Description.Contains(searchTerm)));
-        Assert.True(result.Events.Any(e => e.Category.CategoryName.Contains(searchTerm)));
+        Assert.Contains(result.Events, e => e.EventName.Contains(searchTerm));
+        Assert.Contains(result.Events, e => e.Description != null && e.Description.Contains(searchTerm));
+        Assert.Contains(result.Events, e => e.Category.CategoryName.Contains(searchTerm));
     }
 
     [Fact]
@@ -565,6 +579,37 @@ public class EventServiceTest
         Assert.Contains(result.Events, e => e.EventName == "Event Day 4");
         Assert.Contains(result.Events, e => e.EventName == "Event Day 5");
     }
+
+    [Fact]
+    public async Task GetEventsPaginatedAsync_WithDateFilterUpcoming_ReturnsFilteredAndOrderedResult()
+    {
+        // Arrange
+        int pageNumber = 1;
+        int pageSize = 5;
+        string dateFilter = "upcoming";
+        DateTime now = DateTime.UtcNow.Date;
+        var allEntities = new List<EventEntity>
+        {
+            new() { Id = Guid.NewGuid(), EventName = "Event Tomorrow", EventStartDate = now.AddDays(1), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat" } },
+            new() { Id = Guid.NewGuid(), EventName = "Event Today", EventStartDate = now, Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat" } },
+            new() { Id = Guid.NewGuid(), EventName = "Event Yesterday", EventStartDate = now.AddDays(-1), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat" } }, // Past
+            new() { Id = Guid.NewGuid(), EventName = "Event In 5 Days", EventStartDate = now.AddDays(5), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat" } }
+        }.AsQueryable();
+
+        _mockEventRepository.Setup(repo => repo.GetQueryable()).Returns(allEntities);
+
+        // Act
+        var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, null, null, dateFilter, null, null);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(3, result.TotalCount); // Today, Tomorrow, In 5 Days
+        Assert.Equal(3, result.Events.Count);
+        Assert.Equal("Event Today", result.Events[0].EventName); // Should be ordered by date
+        Assert.Equal("Event Tomorrow", result.Events[1].EventName);
+        Assert.Equal("Event In 5 Days", result.Events[2].EventName);
+        Assert.True(result.Events.All(e => e.EventStartDate >= now));
+    }
 }
 
 // Helper classes for testing IQueryable async operations
@@ -600,18 +645,40 @@ internal class TestAsyncQueryProvider<TEntity> : IAsyncQueryProvider
     public TResult ExecuteAsync<TResult>(Expression expression, CancellationToken cancellationToken = default)
     {
         var expectedResultType = typeof(TResult).GetGenericArguments()[0];
-        var executionResult = typeof(IQueryProvider)
-                                 .GetMethod(
-                                    name: nameof(IQueryProvider.Execute),
-                                    genericParameterCount: 1,
-                                    types: new[] { typeof(Expression) }
-                                 )
-                                 .MakeGenericMethod(expectedResultType)
-                                 .Invoke(this, new[] { expression });
 
-        return (TResult)typeof(Task).GetMethod(nameof(Task.FromResult))
-                                    ?.MakeGenericMethod(expectedResultType)
-                                    .Invoke(null, new[] { executionResult });
+        var executeMethod = typeof(IQueryProvider)
+            .GetMethod(
+                name: nameof(IQueryProvider.Execute),
+                genericParameterCount: 1,
+                types: new[] { typeof(Expression) }
+            );
+
+        if (executeMethod == null)
+        {
+            throw new InvalidOperationException($"Could not find generic Execute method on {nameof(IQueryProvider)}.");
+        }
+        var genericExecuteMethod = executeMethod.MakeGenericMethod(expectedResultType);
+        var executionResult = genericExecuteMethod.Invoke(this, new[] { expression });
+
+        if (executionResult == null)
+        {
+            throw new InvalidOperationException("Execution result is null.");
+        }
+
+        var fromResultMethod = typeof(Task).GetMethod(nameof(Task.FromResult));
+        if (fromResultMethod == null)
+        {
+            throw new InvalidOperationException($"Could not find method {nameof(Task.FromResult)} on {nameof(Task)}.");
+        }
+        var genericFromResultMethod = fromResultMethod.MakeGenericMethod(expectedResultType);
+        var taskResult = genericFromResultMethod.Invoke(null, new[] { executionResult });
+
+        if (taskResult == null)
+        {
+            throw new InvalidOperationException("Task result is null.");
+        }
+
+        return (TResult)taskResult;
     }
 }
 
