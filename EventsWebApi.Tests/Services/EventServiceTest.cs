@@ -11,7 +11,7 @@ using Moq;
 using System.Linq.Expressions;
 using MockQueryable;
 
-namespace EventsWebApi.Tests;
+namespace EventsWebApi.Tests.Services;
 
 public class EventServiceTest
 {
