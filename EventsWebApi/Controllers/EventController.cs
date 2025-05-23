@@ -1,11 +1,14 @@
 ﻿using EventsWebApi.ApiModels.DTO;
 using EventsWebApi.ApiModels.Requests;
+using EventsWebApi.ApiModels.Responses;
 using EventsWebApi.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EventsWebApi.Controllers
 {
     [Route("api/[controller]")]
+    [Produces("application/json")]
+    [Consumes("application/json")]
     [ApiController]
     public class EventController(IEventService eventService, ILogger<EventController> logger) : ControllerBase
     {
@@ -13,6 +16,9 @@ namespace EventsWebApi.Controllers
         private readonly ILogger<EventController> _logger = logger;
 
         [HttpPost]
+        [ProducesResponseType(typeof(EventCreatedResponse), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> CreateEvent(CreateEventRequest requestData)
         {
             try
@@ -38,6 +44,9 @@ namespace EventsWebApi.Controllers
         }
 
         [HttpGet("all")]
+        [ProducesResponseType(typeof(EventResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task <IActionResult> GetAllEvents()
         {
             try
@@ -52,6 +61,9 @@ namespace EventsWebApi.Controllers
         }
 
         [HttpGet]
+        [ProducesResponseType(typeof(PagingEventResult), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetPagingEvents([FromQuery] GetEventQuery queryParams)
         {
             try
@@ -73,6 +85,9 @@ namespace EventsWebApi.Controllers
         }
 
         [HttpGet("{id:guid}", Name = "GetEventById")]
+        [ProducesResponseType(typeof(EventResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> GetEventById(Guid id)
         {
             try
@@ -94,6 +109,9 @@ namespace EventsWebApi.Controllers
         }
 
         [HttpDelete("{id:guid}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> DeleteEvent(Guid id)
         {
             try
@@ -114,6 +132,9 @@ namespace EventsWebApi.Controllers
         }
 
         [HttpPut("{id:guid}")]
+        [ProducesResponseType(typeof(EventResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> UpdateEvent(Guid id, UpdateEventRequest requestData)
         {
             try
