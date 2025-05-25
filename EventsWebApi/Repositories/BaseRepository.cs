@@ -36,11 +36,11 @@ namespace EventsWebApi.Repositories
                 await _context.SaveChangesAsync();
                 return true;
             }
-            catch (DbUpdateException) // Fånga specifikt databasuppdateringsfel
+            catch (DbUpdateException)
             {
                 return false;
             }
-            catch (Exception) // Fånga andra oväntade fel
+            catch (Exception)
             {
                 return false;
             }

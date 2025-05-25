@@ -23,10 +23,8 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1",
         Title = "Events Web API",
         Description = "An ASP.NET Core Web API for managing Events",
-        // You can add more information here like TermsOfService, Contact, License
     });
 
-    // Configure Swashbuckle to use XML comments
     var xmlFilename = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFilename);
     if (File.Exists(xmlPath))
