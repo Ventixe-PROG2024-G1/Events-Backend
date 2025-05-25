@@ -5,7 +5,7 @@ namespace EventsWebApi.ApiModels.DTO;
 public class GetEventQuery
 {
     private const int DefaultPageNumber = 1;
-    private const int DefaultPageSize = 10;
+    private const int DefaultPageSize = 6;
     private const int MaxPageSize = 100;
 
     private int _pageNumber = DefaultPageNumber;
