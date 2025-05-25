@@ -125,7 +125,7 @@ namespace EventsWebApi.Controllers
 
                 return NoContent();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while processing your request.");
             }
@@ -153,7 +153,7 @@ namespace EventsWebApi.Controllers
 
                 return Ok(result);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return StatusCode(StatusCodes.Status500InternalServerError, "An unexpected error occurred while processing your request.");
             }
