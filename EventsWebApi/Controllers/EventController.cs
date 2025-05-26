@@ -75,7 +75,8 @@ namespace EventsWebApi.Controllers
                     queryParams.SearchTerm, 
                     queryParams.DateFilter, 
                     queryParams.SpecificDateFrom, 
-                    queryParams.SpecificDateTo);
+                    queryParams.SpecificDateTo,
+                    queryParams.StatusFilter);
                 return Ok(result);
             }
             catch (Exception)

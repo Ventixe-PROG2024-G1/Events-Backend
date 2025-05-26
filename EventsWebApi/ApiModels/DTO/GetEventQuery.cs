@@ -46,6 +46,7 @@ public class GetEventQuery
     public string? DateFilter { get; set; }
     public DateTime? SpecificDateFrom { get; set; }
     public DateTime? SpecificDateTo { get; set; }
+    public string? StatusFilter { get; set; }
 
     public GetEventQuery()
     {

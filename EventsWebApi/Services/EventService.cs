@@ -1,6 +1,7 @@
 ﻿using EventsWebApi.ApiModels.Requests;
 using EventsWebApi.ApiModels.Responses;
 using EventsWebApi.Data.Entities;
+using EventsWebApi.Domain;
 using EventsWebApi.Handler;
 using EventsWebApi.Mapper;
 using EventsWebApi.Repositories;
@@ -15,7 +16,7 @@ namespace EventsWebApi.Services
         Task<bool> DeleteEventAsync(Guid id);
         Task<IEnumerable<EventResponse>> GetAllEventsAsync();
         Task<EventResponse?> GetEventByIdAsync(Guid id);
-        Task<PagingEventResult> GetEventsPaginatedAsync(int pageNumber, int pageSize, string? categoryNameFilter, string? searchTerm, string? dateFilter, DateTime? specificDateFrom, DateTime? specificDateTo);
+        Task<PagingEventResult> GetEventsPaginatedAsync(int pageNumber, int pageSize, string? categoryNameFilter, string? searchTerm, string? dateFilter, DateTime? specificDateFrom, DateTime? specificDateTo, string? statusFilter);
         Task<EventResponse?> UpdateEventAsync(Guid id, UpdateEventRequest requestData);
     }
 
@@ -97,7 +98,7 @@ namespace EventsWebApi.Services
             }
         }
 
-        public async Task<PagingEventResult> GetEventsPaginatedAsync(int pageNumber, int pageSize, string? categoryNameFilter, string? searchTerm, string? dateFilter, DateTime? specificDateFrom, DateTime? specificDateTo)
+        public async Task<PagingEventResult> GetEventsPaginatedAsync(int pageNumber, int pageSize, string? categoryNameFilter, string? searchTerm, string? dateFilter, DateTime? specificDateFrom, DateTime? specificDateTo, string? statusFilter)
         {
             IQueryable<EventEntity> query = _eventRepository.GetQueryable();
 
@@ -159,6 +160,14 @@ namespace EventsWebApi.Services
             else
             {
                 query = query.OrderBy(e => e.EventStartDate);
+            }
+
+            if (!string.IsNullOrEmpty(statusFilter))
+            {
+                if (Enum.TryParse<EventStatus>(statusFilter, true, out EventStatus parsedStatus))
+                {
+                    query = query.Where(e => e.Status == parsedStatus);
+                }
             }
 
             var totalCount = await query.CountAsync();
