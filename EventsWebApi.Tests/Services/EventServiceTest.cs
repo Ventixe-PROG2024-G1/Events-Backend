@@ -479,7 +479,7 @@ public class EventServiceTest
         _mockEventRepository.Setup(repo => repo.GetQueryable()).Returns(mockQueryable);
 
         // Act
-        var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, null, null, null, null, null);
+        var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, null, null, null, null, null, null);
 
         // Assert
         Assert.NotNull(result);
@@ -508,7 +508,7 @@ public class EventServiceTest
         _mockEventRepository.Setup(repo => repo.GetQueryable()).Returns(mockQueryable);
 
         // Act
-        var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, categoryFilter, null, null, null, null);
+        var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, categoryFilter, null, null, null, null, null);
 
         // Assert
         Assert.NotNull(result);
@@ -536,7 +536,7 @@ public class EventServiceTest
         _mockEventRepository.Setup(repo => repo.GetQueryable()).Returns(mockQueryable);
 
         // Act
-        var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, null, searchTerm, null, null, null);
+        var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, null, searchTerm, null, null, null, null);
 
         // Assert
         Assert.NotNull(result);
@@ -566,7 +566,7 @@ public class EventServiceTest
         _mockEventRepository.Setup(repo => repo.GetQueryable()).Returns(mockQueryable);
 
         // Act
-        var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, null, null, dateFilter, null, null);
+        var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, null, null, dateFilter, null, null, null);
 
         // Assert
         Assert.NotNull(result);
@@ -597,7 +597,7 @@ public class EventServiceTest
         _mockEventRepository.Setup(repo => repo.GetQueryable()).Returns(mockQueryable);
 
         // Act
-        var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, null, null, null, dateFrom, dateTo);
+        var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, null, null, null, dateFrom, dateTo, null);
 
         // Assert
         Assert.NotNull(result);
@@ -628,7 +628,7 @@ public class EventServiceTest
         _mockEventRepository.Setup(repo => repo.GetQueryable()).Returns(mockQueryable);
 
         // Act
-        var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, null, null, dateFilter, null, null);
+        var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, null, null, dateFilter, null, null, null);
 
         // Assert
         Assert.NotNull(result);
@@ -660,7 +660,7 @@ public class EventServiceTest
         _mockEventRepository.Setup(repo => repo.GetQueryable()).Returns(mockQueryable);
 
         // Act
-        var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, null, null, dateFilter, null, null);
+        var result = await _eventService.GetEventsPaginatedAsync(pageNumber, pageSize, null, null, dateFilter, null, null, null);
 
         // Assert
         Assert.NotNull(result);
