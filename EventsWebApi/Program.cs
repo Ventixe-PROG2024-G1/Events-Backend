@@ -1,23 +1,31 @@
 ﻿using EventsWebApi.Data.Context;
 using EventsWebApi.Handler;
+using EventsWebApi.Middleware;
 using EventsWebApi.Repositories;
 using EventsWebApi.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
-using System.Reflection;
+using Swashbuckle.AspNetCore.Filters;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers()
+builder.Services.AddControllers(option =>
+    {
+        option.Filters.Add<ApiKeyMiddleware>();
+    })
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 
+builder.Services.AddDbContext<ApplicationDbContext>(x => x.UseSqlServer(builder.Configuration.GetConnectionString("SqlConnection")));
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
+    options.EnableAnnotations();
+    options.ExampleFilters();
     options.SwaggerDoc("v1", new OpenApiInfo
     {
         Version = "v1",
@@ -25,24 +33,44 @@ builder.Services.AddSwaggerGen(options =>
         Description = "An ASP.NET Core Web API for managing Events",
     });
 
-    var xmlFilename = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
-    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFilename);
-    if (File.Exists(xmlPath))
+    var apiScheme = new OpenApiSecurityScheme
     {
-        options.IncludeXmlComments(xmlPath);
-    }
+        Name = "X-API-KEY",
+        Description = "API Key needed to access the endpoints",
+        Type = SecuritySchemeType.ApiKey,
+        In = ParameterLocation.Header,
+        Scheme = "ApiKey",
+        Reference = new OpenApiReference
+        {
+            Type = ReferenceType.SecurityScheme,
+            Id = "ApiKey"
+        }
+    };
+    options.AddSecurityDefinition("ApiKey", apiScheme);
+    options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        { apiScheme, new List<string>() }
+    });
 });
+
+builder.Services.AddSwaggerExamplesFromAssemblyOf<Program>();
+
+
 builder.Services.AddOpenApi();
 builder.Services.AddMemoryCache();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAllPolicy",
-        builder => builder.AllowAnyOrigin()
+        o => o
+            .AllowAnyOrigin()
             .AllowAnyMethod()
             .AllowAnyHeader());
-});
 
-builder.Services.AddDbContext<ApplicationDbContext>(x => x.UseSqlServer(builder.Configuration.GetConnectionString("SqlConnection")));
+    options.AddPolicy("AllowSpecificHeaders", o => o
+        .AllowAnyOrigin()
+        .AllowAnyMethod()
+        .WithHeaders("Content-Type", "X-API-KEY"));
+});
 
 builder.Services.AddSingleton(typeof(ICacheHandler<>), typeof(CacheHandler<>));
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
@@ -58,13 +86,14 @@ var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI(options =>
 {
-    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Events Web API V1");
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "Events Web API");
     options.RoutePrefix = string.Empty;
 });
 
 app.MapOpenApi();
-app.UseCors("AllowAllPolicy");
 app.UseHttpsRedirection();
+app.UseCors("AllowSpecificHeaders");
+
 app.UseAuthorization();
 app.MapControllers();
 
