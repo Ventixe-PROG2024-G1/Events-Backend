@@ -615,7 +615,7 @@ public class EventServiceTest
         {
             new() { Id = Guid.NewGuid(), EventName = "Event Tomorrow", EventStartDate = now.AddDays(1), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat" } },
             new() { Id = Guid.NewGuid(), EventName = "Event Today", EventStartDate = now, Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat" } },
-            new() { Id = Guid.NewGuid(), EventName = "Event Yesterday", EventStartDate = now.AddDays(-1), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat" } }, // Past
+            new() { Id = Guid.NewGuid(), EventName = "Event Yesterday", EventStartDate = now.AddDays(-1), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat" } },
             new() { Id = Guid.NewGuid(), EventName = "Event In 5 Days", EventStartDate = now.AddDays(5), Category = new CategoryEntity { Id = Guid.NewGuid(), CategoryName = "Cat" } }
         }.AsQueryable();
 
