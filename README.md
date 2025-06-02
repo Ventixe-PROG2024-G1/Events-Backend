@@ -126,7 +126,7 @@ All endpoints are typically prefixed with `/api`.
     *   Path Parameter: `id` - The ID of the event to delete.
     *   Response: `204 No Content` on successful deletion, or `404 Not Found`.
 
-### Categories (Optional but good to have)
+### Categories
 *   **`GET /Category`**
     *   Description: Retrieve all available event categories.
     *   Response: `200 OK` with a list of category objects.
